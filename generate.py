@@ -67,14 +67,16 @@ STATIONS = {
             "translations": {"nl": "Antwerpen-Centraal", "en": "Anvers-Central / Antwerpen-Centraal"}},
     "BRU": {"name": "Bruxelles-Midi",                        "uic": "8814001", "lat": 50.835278, "lon": 4.335833, "timezone": "Europe/Brussels",    # Q800587
             "translations": {"nl": "Brussel-Zuid", "en": "Bruxelles-Midi / Brussel-Zuid"}},
+    "XAV": {"name": "Albertville",                           "uic": "8774164", "lat": 45.673056, "lon": 6.381667, "timezone": "Europe/Paris"},      # Q2905334
     "XMO": {"name": "Moûtiers-Salins-Brides-les-Bains",      "uic": "8774172", "lat": 45.486389, "lon": 6.531389, "timezone": "Europe/Paris"},      # Q3097131
     "XAP": {"name": "Aime-La Plagne",                        "uic": "8774176", "lat": 45.554444, "lon": 6.648611, "timezone": "Europe/Paris"},      # Q2653180
+    "XHPG": {"name": "Landry",                              "uic": "8774177", "lat": 45.575082, "lon": 6.735542, "timezone": "Europe/Paris"},      # Q2783838
     "XBM": {"name": "Bourg-Saint-Maurice",                   "uic": "8774179", "lat": 45.618056, "lon": 6.771667, "timezone": "Europe/Paris"},      # Q2003411
 }
 
 # Ski-side stations in the Tarentaise valley. Trains heading there are
 # direction 0 (outbound, Friday night), trains leaving them direction 1.
-TARENTAISE = {"XMO", "XAP", "XBM"}
+TARENTAISE = {"XAV", "XMO", "XAP", "XHPG", "XBM"}
 
 
 # ── Fetching data from the Travelski API ──────────────────────────────────────
