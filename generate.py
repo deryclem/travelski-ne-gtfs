@@ -10,9 +10,11 @@ Usage:
     python3 generate.py
 """
 
+import csv
+import io
 import zipfile
 import requests  # pip install requests
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from requests.adapters import HTTPAdapter
@@ -46,7 +48,16 @@ PEGASUS_URL = "https://pegasus-trains.com"
 # for rail tickets (travelski.com/instit/cgv-transport-sec).
 CUSTOMER_PHONE = "+33 4 79 96 30 69"
 CUSTOMER_EMAIL = "support.clients@travelski.com"
+FEED_LANG = "fr"
+FEED_CONTACT_EMAIL = "hello@clementdesouche.fr"
 BOOKING_URL = "https://www.travelski.com/transport/travelski-night-express"
+
+BOOKING_RULE_ID = "TNE_RESA"
+BOOKING_MESSAGE = {
+    "fr": "Réservation obligatoire auprès de Travelski, en ligne ou par téléphone.",
+    "nl": "Reserveren verplicht bij Travelski, online of telefonisch.",
+    "en": "Booking required with Travelski, online or by phone.",
+}
 
 # Travelski Night Express blue (timetable accents on travelski.com).
 ROUTE_COLOR = "0042B8"
@@ -60,20 +71,21 @@ ROUTE_TEXT_COLOR = "FFFFFF"
 # small and stable, so a fixed table is simpler than a lookup at every run;
 # an unknown code makes the run fail rather than write an orphan stop_id.
 STATIONS = {
-    "PAZ": {"name": "Paris Gare d'Austerlitz",               "uic": "8754700", "lat": 48.842222, "lon": 2.365833, "timezone": "Europe/Paris"},      # Q734017
-    "AMS": {"name": "Amsterdam Centraal",                    "uic": "8400058", "lat": 52.378950, "lon": 4.900160, "timezone": "Europe/Amsterdam"},  # Q50719
-    "RTM": {"name": "Rotterdam Centraal",                    "uic": "8400530", "lat": 51.925000, "lon": 4.469444, "timezone": "Europe/Amsterdam"},  # Q801388
-    "ANR": {"name": "Anvers-Central",                        "uic": "8821006", "lat": 51.216944, "lon": 4.421111, "timezone": "Europe/Brussels",    # Q800398
+    "PAZ": {"name": "Paris Gare d'Austerlitz",               "uic": "8754700", "url": "https://www.garesetconnexions.sncf/fr/gares-services/paris-austerlitz", "lat": 48.842222, "lon": 2.365833, "timezone": "Europe/Paris"},      # Q734017
+    "AMS": {"name": "Amsterdam Centraal",                    "uic": "8400058", "url": "https://www.ns.nl/stationsinformatie/asd/amsterdam-centraal", "lat": 52.378950, "lon": 4.900160, "timezone": "Europe/Amsterdam"},  # Q50719
+    "RTM": {"name": "Rotterdam Centraal",                    "uic": "8400530", "url": "https://www.ns.nl/stationsinformatie/rtd/rotterdam-centraal", "lat": 51.925000, "lon": 4.469444, "timezone": "Europe/Amsterdam"},  # Q801388
+    "ANR": {"name": "Anvers-Central",                        "uic": "8821006", "url": "https://www.b-europe.com/FR/Gares/Antwerpen-Centraal", "lat": 51.216944, "lon": 4.421111, "timezone": "Europe/Brussels",    # Q800398
             "translations": {"nl": "Antwerpen-Centraal", "en": "Anvers-Central / Antwerpen-Centraal"}},
-    "BRU": {"name": "Bruxelles-Midi",                        "uic": "8814001", "lat": 50.835278, "lon": 4.335833, "timezone": "Europe/Brussels",    # Q800587
+    "BRU": {"name": "Bruxelles-Midi",                        "uic": "8814001", "url": "https://www.b-europe.com/FR/Gares/Bruxelles-Midi", "lat": 50.835278, "lon": 4.335833, "timezone": "Europe/Brussels",    # Q800587
             "translations": {"nl": "Brussel-Zuid", "en": "Bruxelles-Midi / Brussel-Zuid"}},
-    "XAV": {"name": "Albertville",                           "uic": "8774164", "lat": 45.673056, "lon": 6.381667, "timezone": "Europe/Paris"},      # Q2905334
-    "XMO": {"name": "Moûtiers-Salins-Brides-les-Bains",      "uic": "8774172", "lat": 45.486389, "lon": 6.531389, "timezone": "Europe/Paris"},      # Q3097131
-    "XAP": {"name": "Aime-La Plagne",                        "uic": "8774176", "lat": 45.554444, "lon": 6.648611, "timezone": "Europe/Paris"},      # Q2653180
-    "XHPG": {"name": "Landry",                              "uic": "8774177", "lat": 45.575082, "lon": 6.735542, "timezone": "Europe/Paris"},      # Q2783838
-    "XBM": {"name": "Bourg-Saint-Maurice",                   "uic": "8774179", "lat": 45.618056, "lon": 6.771667, "timezone": "Europe/Paris"},      # Q2003411
+    "XAV": {"name": "Albertville",                           "uic": "8774164", "url": "https://www.garesetconnexions.sncf/fr/gares-services/albertville", "lat": 45.673056, "lon": 6.381667, "timezone": "Europe/Paris"},      # Q2905334
+    "XMO": {"name": "Moûtiers-Salins-Brides-les-Bains",      "uic": "8774172", "url": "https://www.garesetconnexions.sncf/fr/gares-services/moutiers-salins-brides-bains", "lat": 45.486389, "lon": 6.531389, "timezone": "Europe/Paris"},      # Q3097131
+    "XAP": {"name": "Aime-La Plagne",                        "uic": "8774176", "url": "https://www.garesetconnexions.sncf/fr/gares-services/aime-plagne", "lat": 45.554444, "lon": 6.648611, "timezone": "Europe/Paris"},      # Q2653180
+    "XHPG": {"name": "Landry",                              "uic": "8774177", "url": "https://www.garesetconnexions.sncf/fr/gares-services/landry", "lat": 45.575082, "lon": 6.735542, "timezone": "Europe/Paris"},      # Q2783838
+    "XBM": {"name": "Bourg-Saint-Maurice",                   "uic": "8774179", "url": "https://www.garesetconnexions.sncf/fr/gares-services/bourg-saint-maurice", "lat": 45.618056, "lon": 6.771667, "timezone": "Europe/Paris"},      # Q2003411
 }
 
+# Station pages: Gares & Connexions (SNCF), NS (Netherlands) and B-Europe (Belgium).
 # Ski-side stations in the Tarentaise valley. Trains heading there are
 # direction 0 (outbound, Friday night), trains leaving them direction 1.
 TARENTAISE = {"XAV", "XMO", "XAP", "XHPG", "XBM"}
@@ -204,8 +216,7 @@ def to_gtfs_time(moment: datetime, origin: datetime) -> str:
     37:28:00, the same as a regular 13:28 winter-time arrival.
     """
     # Subtract in UTC: Python ignores DST when both datetimes share a tzinfo.
-    utc = ZoneInfo("UTC")
-    seconds = int((moment.astimezone(utc) - origin.astimezone(utc)).total_seconds())
+    seconds = int((moment.astimezone(timezone.utc) - origin.astimezone(timezone.utc)).total_seconds())
     return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
 
 
@@ -265,16 +276,11 @@ def build_variants(trains: list[dict]) -> list[dict]:
 
 def make_csv(headers: list[str], rows: list[list]) -> str:
     """Build a CSV string with quoted fields."""
-    def quote(value):
-        if value is None:
-            return '""'
-        return '"' + str(value).replace('"', '""') + '"'
-
-    lines = [",".join(headers)]
-    for row in rows:
-        lines.append(",".join(quote(cell) for cell in row))
-
-    return "\n".join(lines) + "\n"
+    buffer = io.StringIO()
+    buffer.write(",".join(headers) + "\n")
+    writer = csv.writer(buffer, quoting=csv.QUOTE_ALL, lineterminator="\n")
+    writer.writerows(rows)
+    return buffer.getvalue()
 
 
 def build_agency_file() -> str:
@@ -289,25 +295,25 @@ def build_agency_file() -> str:
 def build_stops_file(variants: list[dict]) -> str:
     used = {stop[0] for v in variants for stop in v["stop_times"]}
     rows = [
-        [code, s["name"], s["lat"], s["lon"], s["uic"], s["timezone"]]
+        [code, s["name"], s["lat"], s["lon"], s["uic"], s["url"], s["timezone"]]
         for code, s in STATIONS.items() if code in used
     ]
-    return make_csv(["stop_id", "stop_name", "stop_lat", "stop_lon", "stop_code", "stop_timezone"], rows)
+    return make_csv(["stop_id", "stop_name", "stop_lat", "stop_lon", "stop_code", "stop_url", "stop_timezone"], rows)
 
 
 def build_routes_file(variants: list[dict]) -> str:
-    seen = set()
-    rows = []
+    first_variant = {}
     for v in variants:
-        if v["route_id"] in seen:
-            continue
-        seen.add(v["route_id"])
+        first_variant.setdefault(v["route_id"], v)
+
+    rows = []
+    for v in first_variant.values():
         # Name the line after its two ends, hub first.
         terminus = v["stop_times"][-1][0] if v["direction"] == 0 else v["stop_times"][0][0]
         rows.append([
-            v["route_id"], "TNE", "TNE",
+            v["route_id"], "TNE", f"TNE {STATIONS[v['hub']]['name'].split()[0]}",
             f"{STATIONS[v['hub']]['name']} ↔ {STATIONS[terminus]['name']}",
-            2,  # route_type 2 = rail
+            105,  # route_type 105 = sleeper rail service (extended GTFS route types)
             ROUTE_COLOR, ROUTE_TEXT_COLOR,
         ])
     return make_csv(
@@ -351,14 +357,6 @@ def build_stop_times_file(variants: list[dict]) -> str:
     )
 
 
-BOOKING_RULE_ID = "TNE_RESA"
-BOOKING_MESSAGE = {
-    "fr": "Réservation obligatoire auprès de Travelski, en ligne ou par téléphone.",
-    "nl": "Reserveren verplicht bij Travelski, online of telefonisch.",
-    "en": "Booking required with Travelski, online or by phone.",
-}
-
-
 def build_booking_rules_file() -> str:
     # Tickets are only sold through Travelski. Its conditions of sale give
     # no booking deadline, so the rule says "bookable up to departure".
@@ -389,10 +387,11 @@ def build_feed_info_file(variants: list[dict]) -> str:
     end = all_dates[-1] + timedelta(days=1)
     return make_csv(
         ["feed_publisher_name", "feed_publisher_url", "feed_lang", "feed_start_date", "feed_end_date",
-         "feed_version", "feed_contact_url"],
-        [["travelski-ne-gtfs", "https://github.com/deryclem/travelski-ne-gtfs", "fr",
+         "feed_version", "feed_contact_url", "feed_contact_email", "default_lang"],
+        [["travelski-ne-gtfs", "https://github.com/deryclem/travelski-ne-gtfs", FEED_LANG,
           all_dates[0].strftime("%Y%m%d"), end.strftime("%Y%m%d"),
-          date.today().strftime("%Y%m%d"), "https://github.com/deryclem/travelski-ne-gtfs/issues"]],
+          date.today().strftime("%Y%m%d"), "https://github.com/deryclem/travelski-ne-gtfs/issues",
+          FEED_CONTACT_EMAIL, FEED_LANG]],
     )
 
 
