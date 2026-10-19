@@ -18,8 +18,8 @@ See `feed_info.txt` in the zip for the date range and `feed_version` (generation
 
 Two lines, each running once a week in each direction during the ski season: out on Friday night, back on Saturday night.
 
-- **Paris**: Paris Gare d'Austerlitz → Moûtiers → Aime-La Plagne → Bourg-Saint-Maurice
-- **Benelux**: Amsterdam Centraal → Rotterdam Centraal → Anvers-Central (Antwerpen-Centraal) → Bruxelles-Midi → Moûtiers → Aime-La Plagne → Bourg-Saint-Maurice
+- **Paris**: Paris Gare d'Austerlitz → Albertville → Moûtiers → Aime-La Plagne → Landry → Bourg-Saint-Maurice
+- **Benelux**: Amsterdam Centraal → Rotterdam Centraal → Anvers-Central (Antwerpen-Centraal) → Bruxelles-Midi → Albertville → Moûtiers → Aime-La Plagne → Bourg-Saint-Maurice
 
 The trains are run by [Pegasus Trains](https://pegasus-trains.com) for Travelski.
 
@@ -30,7 +30,7 @@ The timetable isn't the same every week: departure and arrival times shift on so
 | Source | What it provides |
 |--------|-------------------|
 | `api.travelski.com/flight-connector/travelski-night-express` | The endpoint the train search widget on travelski.com calls (found in `cms.travelfactory.fr/component/standalone-component/tf-train-results.js`). With `full_list=true` it pages through every bookable offer of the season, one-way and round trip, with departure and arrival times for each origin/destination pair. |
-| [Wikidata](https://www.wikidata.org) | Coordinates and UIC codes for the eight stations, stored in `generate.py` (the Wikidata item is noted next to each). |
+| [Wikidata](https://www.wikidata.org) | Coordinates and UIC codes for the ten stations, stored in `generate.py` (the Wikidata item is noted next to each). |
 
 The API never gives a train's full stop list, only the pairs it sells (Amsterdam → Aime, Rotterdam → Moûtiers, …). `generate.py` puts each train back together by linking legs that share a stop at the same moment: Amsterdam → Moûtiers and Rotterdam → Moûtiers arrive at Moûtiers at the same minute, so they're the same train. So there's no hardcoded list of lines or stops. A new origin station shows up by itself, as long as its code is added to the station table (the run fails loudly if it isn't).
 
@@ -47,8 +47,8 @@ About two dozen HTTP requests, a few seconds end to end. Runs automatically ever
 
 ## Limitations
 
-- **Boarding and alighting only.** Travelski sells tickets from the hubs to the Alps and back, never between two hubs or two Alpine stations. So hub stops are pickup-only and Alpine stops are drop-off-only, and each stop has a single time (the one printed on the ticket), with no separate arrival and departure.
-- **No Albertville.** The Paris train also calls at Albertville (shown on Travelski's timetable image), but it isn't sold and the API has no time for it, so it's left out.
+- **Boarding and alighting only.** Travelski sells tickets from the hubs to the Alps and back, never between two hubs or two Alpine stations. So on the way out hub stops are pickup-only and Alpine stops (Albertville and Landry included) are drop-off-only, and the reverse on the way back, and each stop has a single time (the one printed on the ticket), with no separate arrival and departure.
+- **Landry is Paris only.** Only the Paris train calls at Landry.
 - **Sold-out legs might drop out.** Each offer carries a `stock` count, and it's not known yet whether sold-out offers stay listed. If they don't and every combination involving a given stop on a given date sold out, that stop would disappear from that date's trip. The trip itself stays, since other pairs still describe it.
 - No fares: prices are dynamic and mostly bundled with accommodation.
 - No shapes: the only stops known are hours apart (Bruxelles → Moûtiers is one hop), and the actual routing isn't published, so map-matching would only guess the path.
